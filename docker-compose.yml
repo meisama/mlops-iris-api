@@ -1,15 +1,16 @@
-services:  # <--- COLUMN 1 (No spaces)
-  mlops-iris-api: # <--- Indented 2 spaces  
-    build: # <--- Indented 4 spaces
+services:
+  mlops-iris-api:
+    build:
       context: .
       dockerfile: src/api/Dockerfile
-    deploy:
-      replicas: 3
+    #deploy:
+    #  replicas: 3
+    container_name: mlops-iris-api
     expose:
       - "8000"
 
-  nginx: # <--- Indented 2 spaces (MUST align exactly with 'mlops-iris-api')
-    build: # <--- Indented 4 spaces
+  nginx:
+    build:
       context: deployments/nginx/
       dockerfile: Dockerfile
     container_name: nginx_revproxy
@@ -22,3 +23,30 @@ services:  # <--- COLUMN 1 (No spaces)
       - ./deployments/nginx/.htpasswd:/etc/nginx/.htpasswd:ro
     depends_on:
       - mlops-iris-api
+
+  nginx_exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    command:
+      - "-nginx.scrape-uri=http://nginx_revproxy/nginx_status"
+    ports:
+      - "9113:9113"
+    depends_on:
+      - nginx
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./deployments/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - nginx_exporter
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
